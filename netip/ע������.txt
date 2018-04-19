@@ -1,0 +1,10 @@
+1.netip.c中创建的client都是依赖于CreatEventManger(MANGER_ROLE_LISTEN)管理实体(唯一，不是master，不具有定时器功能)
+
+2.main中tcp client回调中关闭socket会导致sockettool工具崩溃
+
+3.client remmap没有实现
+
+4.client close 逻辑没有整理
+
+-----------------------------------------------------------------------------------------------------------------
+5.server 没有写
