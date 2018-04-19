@@ -18,6 +18,7 @@ extern "C" {
 
 #define NETIP_ADDR_SIZE_MAX (16)
 
+#define INVALID_SOCKET    (-1)
 
 typedef enum
 {

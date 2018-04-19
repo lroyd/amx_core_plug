@@ -73,7 +73,7 @@ typedef uintptr_t       uint_t;
 
 
 #define SOCKET			  INT32
-#define INVALID_SOCKET    -1
+
 
 #define CALLBACK    
 #define WINAPI      

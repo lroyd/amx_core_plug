@@ -37,7 +37,6 @@ static amx_inline amx_msec_t amx_get_sys_timer(void)
 
 static amx_inline void amx_event_del_timer(T_EventInfo *ev)
 {
-
     LockVarLock(amx_event_timer_mutex);
 
     amx_rbtree_delete(&amx_event_timer_rbtree, &ev->timer);
@@ -47,7 +46,7 @@ static amx_inline void amx_event_del_timer(T_EventInfo *ev)
     ev->timer.left = NULL;
     ev->timer.right = NULL;
     ev->timer.parent = NULL;
-    ev->m_iTimerSet = 0;
+    ev->m_iTimerSet = 0;	
 }
 
 static amx_inline void amx_event_add_timer(T_EventInfo *ev, amx_msec_t timer)

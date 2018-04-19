@@ -9,8 +9,6 @@
 #include "event.h"
 
 
-#define TAG_NET ("NET")
-
 typedef struct _tagUDPRemmapCli 
 {
     INT32			m_tSocket;	//客户端真实fd
@@ -30,29 +28,46 @@ PT_EvtMangerInfo	g_pNetipClientManger = NULL;	//只创建一次
 /* NETIP 守护定时器(默认关闭) */
 
 #define NETIP_TIMER_MAIN   (60*1000)	// 默认1min-1000ms单位
-
+/*******************************************************************************
+* Name: 
+* Descriptions:
+* Parameter:	
+* Return:	
+* *****************************************************************************/
 INT32 NetipTimerFun(void *_pThis)
 {
-	PT_EventInfo pThis = _pThis;
+	INT32 iRet = -1;
+	PT_EventInfo pThis	= _pThis;
 	pThis->m_emType		= EVENT_TIMER;
 	pThis->m_iEventFD	= NETIP_TIMER_MAIN;
 	
-	EventRegister(pThis, pThis->m_pManger);  
+	iRet = EventRegister(pThis, pThis->m_pManger);  
 	
-	//DLOGD(TAG_MAIN,"MainTimerFun...");
+	syslog_wrapper(LOG_DEBUG, "Netip TimerFun %d", iRet);
    	return 0;
 }
-
+/*******************************************************************************
+* Name: 
+* Descriptions:
+* Parameter:	
+* Return:	
+* *****************************************************************************/
 static PT_EvtMangerInfo NetipServerMangerCreate(void)
 {
 	if(g_pNetipServerManger == NULL)
 	{
-		g_pNetipServerManger = CreatEventManger(MANGER_ROLE_MASTER);	
+		g_pNetipServerManger = CreatEventManger(MANGER_ROLE_MASTER);	//具有定时器功能
 		EventMangerInit(g_pNetipServerManger, NULL, NETIP_TIMER_MAIN); //默认关闭
 	}
+
 	return g_pNetipServerManger;
 }
-/* 创建服务器，不提供IP，只有PORT */
+/*******************************************************************************
+* Name: TcpServerCreate
+* Descriptions:创建服务器，不提供IP(本地IP)，只有PORT
+* Parameter:	
+* Return:	-1错误/socket fd
+* *****************************************************************************/
 INT32 TcpServerCreate(UINT16 _usLocalPort, NET_PROCESSRECVDATA _pUserRecvFun, NET_PROCESSREERROR _pUserErrFun)
 {
 	INT32 iRet = -1; 
@@ -60,23 +75,15 @@ INT32 TcpServerCreate(UINT16 _usLocalPort, NET_PROCESSRECVDATA _pUserRecvFun, NE
 	PT_EvtMangerInfo pServerManger = NetipServerMangerCreate(); //manger只有一个
     if(NULL == pServerManger)
     {
-        DLOGE(TAG_NET,"{%s:%d} _NetipServerMangerCreate error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "tcp _NetipServerMangerCreate error");
         return -1;
-    }	
+    }
 	
 	PT_NetServer pTCPServer = NetServerCreate(pServerManger);
 	
 	iRet = NetServerInit(NETIP_TCP, pTCPServer, _usLocalPort, _pUserRecvFun, _pUserErrFun, NULL);
-	if(iRet == 0)
-	{
-		
-	}
-	else
-	{
-		
-	}
-	
-	return 0;
+	syslog_wrapper(LOG_TRACE, "tcp server create fd = %d", iRet);
+	return iRet;
 }
 
 INT32 UdpServerCreate(UINT16 _usLocalPort, NET_PROCESSRECVDATA _pUserRecvFun, NET_PROCESSREERROR _pUserErrFun)
@@ -86,22 +93,15 @@ INT32 UdpServerCreate(UINT16 _usLocalPort, NET_PROCESSRECVDATA _pUserRecvFun, NE
 	PT_EvtMangerInfo pServerManger = NetipServerMangerCreate(); //manger只有一个
     if(NULL == pServerManger)
     {
-        DLOGE(TAG_NET,"{%s:%d} _NetipServerMangerCreate error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "udp _NetipServerMangerCreate error");
         return -1;
     }	
 	
 	PT_NetServer pUDPServer = NetServerCreate(pServerManger);
 	
 	iRet = NetServerInit(NETIP_UDP, pUDPServer, _usLocalPort, _pUserRecvFun, _pUserErrFun, NULL);
-	if(iRet == 0)
-	{
-		
-	}
-	else
-	{
-		
-	}
-	
+
+	syslog_wrapper(LOG_TRACE, "udp server create fd = %d", iRet);
 	return 0;
 }
 
@@ -146,7 +146,7 @@ INT32 UdpClientCreate(UINT8 *_pConnIp, UINT16 _usConnPort, NET_PROCESSRECVDATA _
 	PT_EvtMangerInfo pClientManger = NetipClientMangerCreate(); //manger只有一个
     if(NULL == pClientManger)
     {
-        DLOGE(TAG_NET,"{%s:%d} _NetipClientMangerCreate error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "udp _NetipClientMangerCreate error");
         return -1;
     }
 	
@@ -178,7 +178,7 @@ INT32 UdpClientDestroy(INT32 _iUserFd)
 	else
 	{
 		/* 无效fd */
-		DLOGE(TAG_NET,"{%s:%d} invalid PT_NetClient!!!",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "invalid udp fd = %d",_iUserFd);
 	}	
 	return 0;
 }
@@ -195,7 +195,7 @@ INT32 TcpClientCreate(UINT8 *_pConnIp, UINT16 _usConnPort, NET_PROCESSRECVDATA _
 	PT_EvtMangerInfo pClientManger = NetipClientMangerCreate(); //manger只有一个
     if(NULL == pClientManger)
     {
-        DLOGE(TAG_NET,"{%s:%d} _NetipClientMangerCreate error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "tcp _NetipClientMangerCreate error");
         return -1;
     }
 	
@@ -221,14 +221,13 @@ INT32 TcpClientDestroy(INT32 _iUserFd)
 	
 	if(pClient)
 	{
-		//NetClientDestroy(pClient);
-		close(pClient->in_tEntity.m_tSocket);
+		NetClientDestroy(pClient);
 		g_tUdpRemmapTable[_iUserFd].pClient = NULL;
 	}
 	else
 	{
 		/* 无效fd */
-		DLOGE(TAG_NET,"{%s:%d} invalid PT_NetClient!!!",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "invalid tcp fd = %d",_iUserFd);
 	}	
 	return 0;
 }
@@ -253,7 +252,7 @@ INT32 TcpClientSendData(INT32 _iUserFd, UINT8 *_aucSndBuf, INT32 _iLen)
 	else
 	{
 		/* 无效fd */
-		DLOGE(TAG_NET,"{%s:%d} invalid PT_NetClient!!!",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "invalid tcp fd = %d",_iUserFd);
 	}
 
 	return 0;
@@ -277,7 +276,7 @@ INT32 UdpClientSendData(INT32 _iUserFd, UINT8 *_aucSndBuf, INT32 _iLen)
 	else
 	{
 		/* 无效fd */
-		DLOGE(TAG_NET,"{%s:%d} invalid PT_NetClient!!!",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "invalid udp fd = %d",_iUserFd);
 	}
 
 	return 0;
@@ -300,7 +299,7 @@ INT32 UdpClientSendDataByIP(INT32 _iUserFd, UINT8 *_pConnIp, UINT16 _usConnPort,
 	else
 	{
 		/* 无效fd */
-		DLOGE(TAG_NET,"{%s:%d} invalid PT_NetClient!!!",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_ERROR, "invalid udp fd = %d",_iUserFd);
 	}
 
 	return 0;

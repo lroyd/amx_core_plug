@@ -48,12 +48,12 @@ static INT32 tcp_read(SOCKET _tSocket, UINT8 *_pData, UINT32 _uiLen)
     INT32 iRet = 0;
     if (_tSocket == INVALID_SOCKET) 
     {
-		DLOGE(TAG_NET_CLIENT,"{%s:%d} INVALID_SOCKET",__FUNCTION__, __LINE__);
+		syslog_wrapper(LOG_WARNING, "tcp client: peer fd is INVALID_SOCKET!!");
 		return -1;
 	}
 	if (_pData == NULL) 
 	{
-		DLOGE(TAG_NET_CLIENT,"{%s:%d} data is null",__FUNCTION__, __LINE__);
+		syslog_wrapper(LOG_WARNING, "tcp client: peer receive data is null!!");
 		return -1;
 	}		
 
@@ -63,13 +63,12 @@ static INT32 tcp_read(SOCKET _tSocket, UINT8 *_pData, UINT32 _uiLen)
 		if (iRet == 0 || errno != EAGAIN) 
 		{
 			/* 有可能是关闭逻辑 */
-			//DLOGE(TAG_NET_CLIENT,"{%s:%d} _recv error",__FUNCTION__, __LINE__);
 	        return -1;
 		} 
 		else 
 		{
 			/* recv 失败 -1 */
-			DLOGE(TAG_NET_CLIENT,"{%s:%d}",__FUNCTION__, __LINE__);
+			syslog_wrapper(LOG_FATAL, "tcp client: peer receive error!!");
 			return 0;
 		}
     }
@@ -98,7 +97,7 @@ static INT32 tcp_recv_handle(void *_pThis)
 			{
 				iRet = tcp_read(pThis->m_tSocket, aucRcvBuf, RECV_BUF_SIZE_MAX);			
 			} while (iRet == RECV_BUF_SIZE_MAX);
-			
+			syslog_wrapper(LOG_WARNING, "tcp client: peer receive full buff error!!");
 			DLOGE(TAG_NET_CLIENT,"{%s:%d} receive full buff error",__FUNCTION__, __LINE__);
 			iRcvLen = 0;
 			goto LAB_EXIT;
@@ -106,13 +105,12 @@ static INT32 tcp_recv_handle(void *_pThis)
 		iRet = tcp_read(pThis->m_tSocket, aucRcvBuf + iRcvLen, RECV_BUF_SIZE_MAX - iRcvLen);
 		if (iRet <= 0) 
 		{
-			//DLOGE(TAG_NET_CLIENT,"{%s:%d} _tcp_read error",__FUNCTION__, __LINE__);
 			goto LAB_EXIT;
 		}
 		iRcvLen += iRet;
 		iContinue = (iRcvLen == RECV_BUF_SIZE_MAX) ? 1 : 0;
 	
-		if (pThis->pUserRcvCbk)
+		//if (pThis->pUserRcvCbk)
 		{
 			pPeerInfo.m_tSocket = pThis->m_tSocket;
 			pThis->pUserRcvCbk(&pPeerInfo, aucRcvBuf, iRcvLen);
@@ -123,10 +121,9 @@ LAB_EXIT:
 	if(iRet < 0)
 	{
 		/* SERV关闭逻辑会进入这里, 主动断开不会进来 */
-		DLOGE(TAG_NET_CLIENT,"xxxxxxxxxxxxxx");
+		//DLOGE(TAG_NET_CLIENT,"xxxxxxxxxxxxxx");
 		close(pThis->m_tSocket);
 		/* 释放tcp实体 */
-		
 	}
 	
 	return 0;	
@@ -156,9 +153,8 @@ static INT32 udp_recv_handle(void *_pThis)
 			pPeerInfo.m_tSocket = pThis->m_tSocket;
 			sprintf(pPeerInfo.m_ucClientIp,"%s", inet_ntoa(tPeerAddr.sin_addr));
 			pPeerInfo.m_usClientPort = ntohs(tPeerAddr.sin_port);
-			//DLOGD(TAG_NET_SERVER_UDP,"peer IP :[%s] [%d] ", pPeerInfo.m_ucClientIp, pPeerInfo.m_usClientPort);
-			
-            if (pThis->pUserRcvCbk)
+			syslog_wrapper(LOG_TRACE, "udp client: server IP =[%s]-[%d] receive data", pPeerInfo.m_ucClientIp, pPeerInfo.m_usClientPort);
+            //if (pThis->pUserRcvCbk)
             {
                 pThis->pUserRcvCbk(&pPeerInfo, aucRcvBuf, iRcvLen);
             }
@@ -168,8 +164,8 @@ static INT32 udp_recv_handle(void *_pThis)
 	return 0;	
 }
 /*******************************************************************************
-* Name: 
-* Descriptions:
+* Name: NetClientCreate
+* Descriptions:创建一个客户端
 * Parameter:	
 * Return:	
 * *****************************************************************************/
@@ -185,7 +181,7 @@ PT_NetClient NetClientCreate(void *_pManger, NETIP_CLI_RCV_MODE _emNetRcvMode)
 	return pNetClient;
 }
 /*******************************************************************************
-* Name: 
+* Name: NetClientDestroy
 * Descriptions:
 * Parameter:	
 * Return:	
@@ -203,7 +199,8 @@ INT32 NetClientDestroy(PT_NetClient _pClient)
 		if (pClient->in_tEntity.m_tSocket)
 		{
 			close(pClient->in_tEntity.m_tSocket);
-			pClient->in_tEntity.m_tSocket = -1;
+			syslog_wrapper(LOG_DEBUG, "net client: fd = %d close", pClient->in_tEntity.m_tSocket);
+			pClient->in_tEntity.m_tSocket = INVALID_SOCKET;
 		}
 		/* 销毁 */
 		free(pClient);		
@@ -221,6 +218,11 @@ INT32 NetClientInit(NETIP_TYPE _emNetType, PT_NetClient _pClient, UINT8 *_pConnI
 	INT32 iRet = -1; 
 	
 	PT_NetClient pClient = _pClient;
+
+	if (_pUserRecvFun == NULL)
+	{
+		syslog_wrapper(LOG_ERROR, "net %s client init: user call back function can not empty!!", _emNetType?"udp":"tcp");
+	}
 	
 	if(NETIP_TCP == _emNetType)
 	{
@@ -233,7 +235,7 @@ INT32 NetClientInit(NETIP_TYPE _emNetType, PT_NetClient _pClient, UINT8 *_pConnI
 	
 	if(pClient->in_tEntity.m_tSocket < 0)   
 	{   
-		DLOGE(TAG_NET_CLIENT,"{%s:%d} _socket error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_FATAL, "net %s client init: _socket error", _emNetType?"udp":"tcp");
 		return -1;
 	} 		
 	
@@ -260,7 +262,7 @@ INT32 NetClientInit(NETIP_TYPE _emNetType, PT_NetClient _pClient, UINT8 *_pConnI
 		//连接服务器，成功返回0，错误返回-1  
 		if (connect(pClient->in_tEntity.m_tSocket, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)  
 		{  
-			DLOGE(TAG_NET_CLIENT,"{%s:%d} _connect error",__FUNCTION__,__LINE__);
+			syslog_wrapper(LOG_FATAL, "net %s client init: _connect error", _emNetType?"udp":"tcp");
 			return -1;
 		} 		
 	}	
@@ -288,8 +290,8 @@ INT32 NetClientInit(NETIP_TYPE _emNetType, PT_NetClient _pClient, UINT8 *_pConnI
 * Return:	
 * *****************************************************************************/
 INT32 NetClientClose(PT_NetClient _pClient)
-{
-	close(_pClient->in_tEntity.m_tSocket);
+{	
+	NetClientDestroy(_pClient);
     return 0;
 }
 /*******************************************************************************
@@ -306,6 +308,7 @@ INT32 TcpClientSnd(PT_NetClient _pClient, UINT8 *_aucSndBuf, INT32 _iLen)
     if(pClient && _aucSndBuf && pClient->in_tEntity.m_tSocket != INVALID_SOCKET)
     {
         iRet = write2(pClient->in_tEntity.m_tSocket, _aucSndBuf, _iLen);
+		syslog_wrapper(LOG_TRACE, "tcp client fd = %d send data size = %d to server", pClient->in_tEntity.m_tSocket, iRet);
     }
     return iRet;
 }
@@ -327,6 +330,7 @@ INT32 UdpClientSndByIp(PT_NetClient _pClient, UINT8 *_pConnIp, UINT16 _usConnPor
 	tServInfo.sin_port = htons(_usConnPort);  
 
 	sendto(pClient->in_tEntity.m_tSocket, _aucSndBuf, _iLen, 0, (struct sockaddr *)&tServInfo, sizeof(struct sockaddr));   
+	syslog_wrapper(LOG_TRACE, "udp client send data to fd = %d, size = %d", pClient->in_tEntity.m_tSocket, _iLen);
 	
 	if (CLI_RCV_SYNC == pClient->m_iCliRcvMode)
 	{

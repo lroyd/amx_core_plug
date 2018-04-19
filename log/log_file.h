@@ -10,8 +10,6 @@ extern "C"{
 #include <errno.h>
 
 
-#define PENELOPE
-
 enum 
 {
 	LOG_FATAL = 0,

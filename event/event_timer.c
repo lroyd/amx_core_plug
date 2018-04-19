@@ -73,7 +73,7 @@ void amx_event_expire_timers(void)
             amx_rbtree_delete(&amx_event_timer_rbtree, &ev->timer); 
 			
             UnLockVarLock(amx_event_timer_mutex);
-            
+			
 			ev->timer.left = NULL;
             ev->timer.right = NULL;
             ev->timer.parent = NULL;

@@ -18,11 +18,6 @@
 #define FALSE	(0)
 
 
-
-#ifdef PENELOPE
-	#include "netip_server.h"
-#endif
-
 #include "log_file.h"
 
 //前景色:30（黑色）、31（红色）、32（绿色）、 33（黄色）、34（蓝色）、35（洋红）、36（青色）、37（白色）
@@ -33,7 +28,7 @@
 #define CONSOLE_LOG_UNIX_DOMAIN				("./console_log.socket")
 #define CONSOLE_LOG_FILE_PATH				("./console_log.log")
 
-#define LOG_FILE_SAVE_SIZE_MAX				(128)//(256*1024)  
+#define LOG_FILE_SAVE_SIZE_MAX				(256*1024)  
 #define LOG_FILE_PATH_SIZE_MAX				(128)
 
 #define LOG_BUFFER_SIZE_MAX					(1024)
@@ -148,7 +143,7 @@ static void log_info(unsigned char *_pData, int _iLen)
 
 static void log_trace(unsigned char *_pData, int _iLen)
 {
-    fprintf(stdout, "[%s] %s\n", getLogTime(), _pData); 
+    fprintf(stdout, "[\033[1;33;40m%s\033[m] %s\n", getLogTime(), _pData); 
 }
 
 const LOG_FUNC_TB g_pLogFuncTable[LOG_MAX] = 
@@ -293,7 +288,7 @@ static int open_log_file(T_LogFileInfo *_pThis, const char *_pPath)
 	return 0;
 }
 
-#ifdef PENELOPE
+
 /* 打印 + 保存 */
 static void server_log_printf(T_LogFileInfo *_pThis, int _ucLevel, unsigned char *_pData, int _iLen) 
 {
@@ -499,7 +494,7 @@ INT32 console_log_main(INT32 _iArgc, UINT8 **_pArgv)
 	local_log_printf(LOG_INFO, "console_log_init ret = %d", iRet);
 	return 0;
 }
-#endif
+
 
 
 

@@ -47,7 +47,18 @@ const _HANDLE g_tServerHandle[NETIP_MAX] = {
 	udp_event_handle,
 };
 
-static T_ConnNodePool g_tConnNodePool; //tcp
+static T_ConnNodePool g_tConnNodePool; //only tcp
+
+/*******************************************************************************
+* Name: 
+* Descriptions:
+* Parameter:	
+* Return:	
+* *****************************************************************************/
+static INT32 set_blocking(INT32 _iSocket)
+{
+    return fcntl(_iSocket, F_SETFL, fcntl(_iSocket, F_GETFD, 0)&~O_NONBLOCK);
+}
 
 static INT32 set_nonblocking(INT32 _iSocket)
 {
@@ -61,7 +72,7 @@ static INT32 set_nonblocking(INT32 _iSocket)
 * *****************************************************************************/
 static PT_ConNodeInfo connect_node_malloc(void)
 {
-    void * pNode =NULL;
+    void * pNode = NULL;
     LockVarLock(g_tConnNodePool.m_Lock);
     if(g_tConnNodePool.m_iFreeDataCnt > 0)
     {
@@ -72,7 +83,10 @@ static PT_ConNodeInfo connect_node_malloc(void)
     {
         UnLockVarLock(g_tConnNodePool.m_Lock);
         pNode = (void *)malloc(sizeof(T_ConNodeInfo));
-        memset(pNode,0,sizeof(T_ConNodeInfo));
+		if(pNode)
+		{
+			memset(pNode,0,sizeof(T_ConNodeInfo));
+		}
     }
     return pNode;
 }
@@ -115,10 +129,8 @@ static INT32 connect_close(void *_pThis)
         pThis->pConnErrCbk((void *)&pThis->in_tPeer, NETIP_RET_SOCKET_CLOSE);
     }
     EventCancel(pThis);
+	syslog_wrapper(LOG_DEBUG, "tcp server: peer close fd = %d",pThis->in_tPeer.m_tSocket);
     close2(pThis->in_tPeer.m_tSocket);
-	
-    //pThis->m_pPeer=NULL;		//peer
-	
     pThis->in_tPeer.m_tSocket	= INVALID_SOCKET;
     pThis->m_uiRecvLen	= 0;
     connect_node_free(pThis);
@@ -135,12 +147,12 @@ static INT32 tcp_read(SOCKET _tSocket, UINT8 *_pData, UINT32 _uiLen)
     INT32 iRet = 0;
     if (_tSocket == INVALID_SOCKET) 
     {
-		DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} INVALID_SOCKET",__FUNCTION__, __LINE__);
+		syslog_wrapper(LOG_WARNING, "tcp server: peer fd is INVALID_SOCKET!!");
 		return -1;
 	}
 	if (_pData == NULL) 
 	{
-		DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} data is null",__FUNCTION__, __LINE__);
+		syslog_wrapper(LOG_WARNING, "tcp server: peer receive data is null!!");
 		return -1;
 	}		
 
@@ -150,13 +162,12 @@ static INT32 tcp_read(SOCKET _tSocket, UINT8 *_pData, UINT32 _uiLen)
 		if (iRet == 0 || errno != EAGAIN) 
 		{
 			/* 有可能是关闭逻辑 */
-			//DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} _recv error",__FUNCTION__, __LINE__);
 	        return -1;
 		} 
 		else 
 		{
 			/* recv 失败 -1 */
-			DLOGE(TAG_NET_SERVER_TCP,"{%s:%d}",__FUNCTION__, __LINE__);
+			syslog_wrapper(LOG_FATAL, "tcp server: peer receive error!!");
 			return 0;
 		}
     }
@@ -182,21 +193,19 @@ static INT32 connect_event_handle(void * _pThis)
 			{
 				iRet = tcp_read(pThis->in_tPeer.m_tSocket, pThis->m_aucRecvBuf, RECV_BUF_SIZE_MAX);			
 			} while (iRet == RECV_BUF_SIZE_MAX);
-			
-			DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} receive full buff error",__FUNCTION__, __LINE__);
+			syslog_wrapper(LOG_WARNING, "tcp server: peer receive full buff error!!");
 			pThis->m_uiRecvLen = 0;
 			goto LAB_EXIT;
 		}
 		iRet = tcp_read(pThis->in_tPeer.m_tSocket, pThis->m_aucRecvBuf + pThis->m_uiRecvLen, RECV_BUF_SIZE_MAX - pThis->m_uiRecvLen);
 		if (iRet <= 0) 
 		{
-			//DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} _tcp_read error",__FUNCTION__, __LINE__);
 			goto LAB_EXIT;
 		}
 		pThis->m_uiRecvLen += iRet;
 		iContinue = (pThis->m_uiRecvLen == RECV_BUF_SIZE_MAX) ? 1 : 0;
 	
-		if (pThis->pConnRcvCbk)
+		//if (pThis->pConnRcvCbk)
 		{
 			pThis->pConnRcvCbk((void *)&pThis->in_tPeer, pThis->m_aucRecvBuf, pThis->m_uiRecvLen);
 		}
@@ -250,8 +259,7 @@ static INT32 tcp_accept_handle(void * _pServer)
 			sprintf(pConnect->in_tPeer.m_ucClientIp,"%s", inet_ntoa(tAddrClient.sin_addr));
 			pConnect->in_tPeer.m_usClientPort	= ntohs(tAddrClient.sin_port);
 			pConnect->in_tPeer.pThis			= pConnect;	//释放的时候使用
-			//DLOGD(TAG_NET_SERVER_TCP,"{%s:%d} client IP : [%s] [%d] ",__FUNCTION__,__LINE__, pConnect->in_tPeer.m_ucClientIp, pConnect->in_tPeer.m_usClientPort);
-			
+			syslog_wrapper(LOG_DEBUG, "tcp server: new peer accept IP =[%s]-[%d]", pConnect->in_tPeer.m_ucClientIp, pConnect->in_tPeer.m_usClientPort);
 			pConnect->in_tEvent.m_emType	= EVENT_INLT;	//EVENT_INLT;
 			pConnect->in_tEvent.m_iEventFD	= nSockClient;
 			pConnect->in_tEvent.m_Handle	= connect_event_handle;		
@@ -263,7 +271,7 @@ static INT32 tcp_accept_handle(void * _pServer)
         else
         {
             close2(nSockClient);
-			DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} connect_node_malloc error",__FUNCTION__,__LINE__);
+			syslog_wrapper(LOG_ERROR, "tcp server: new peer accept but connect_node_malloc error!!");
         }
     }
     return 0;
@@ -291,12 +299,9 @@ static INT32 udp_event_handle(void *_pThis)
 			pPeerInfo.m_tSocket = pThis->m_tSocket;
 			sprintf(pPeerInfo.m_ucClientIp,"%s", inet_ntoa(tPeerAddr.sin_addr));
 			pPeerInfo.m_usClientPort = ntohs(tPeerAddr.sin_port);
-			//DLOGD(TAG_NET_SERVER_UDP,"peer IP :[%s] [%d] ", pPeerInfo.m_ucClientIp, pPeerInfo.m_usClientPort);
-			
-            if (pThis->pUserRcvCbk)
-            {
-                pThis->pUserRcvCbk(&pPeerInfo, aucRcvBuf, iRcvLen);
-            }
+			syslog_wrapper(LOG_TRACE, "udp server: peer IP =[%s]-[%d] receive data", pPeerInfo.m_ucClientIp, pPeerInfo.m_usClientPort);
+			pThis->pUserRcvCbk(&pPeerInfo, aucRcvBuf, iRcvLen);
+
     	}
 	}while(iRcvLen > 0);
 	
@@ -322,7 +327,7 @@ PT_NetServer NetServerCreate(void *_pManger)
 * Name: 
 * Descriptions: 服务器必须是异步接收
 * Parameter:	_cIP:返回本地的IP
-* Return:	
+* Return:	-1错误/socket fd
 * *****************************************************************************/
 INT32 NetServerInit(NETIP_TYPE _emNetType, PT_NetServer _pServer, UINT16 _usLocalPort, NET_PROCESSRECVDATA _pUserRecvFun, NET_PROCESSREERROR _pUserErrFun, UINT8 *_cIP)
 {    
@@ -334,6 +339,11 @@ INT32 NetServerInit(NETIP_TYPE _emNetType, PT_NetServer _pServer, UINT16 _usLoca
 	socklen_t nAddrLen = sizeof(struct sockaddr_in); 
     
 	pServer->m_usPort			= _usLocalPort;
+	
+	if (_pUserRecvFun == NULL)
+	{
+		syslog_wrapper(LOG_ERROR, "net %s server init: user call back function can not empty!!", _emNetType?"udp":"tcp");
+	}
 	pServer->pUserRcvCbk		= _pUserRecvFun;
 	pServer->pUserErrCbk		= _pUserErrFun;
 	
@@ -346,7 +356,12 @@ INT32 NetServerInit(NETIP_TYPE _emNetType, PT_NetServer _pServer, UINT16 _usLoca
 	else
 		pServer->m_tSocket	= socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	
-	/* 设置地址复用 */
+	if (pServer->m_tSocket < 0)
+	{
+		syslog_wrapper(LOG_FATAL, "net %s server init: _socket error", _emNetType?"udp":"tcp");
+		return -1;		
+	}
+	
 	INT32 op = 1;
 	setsockopt(pServer->m_tSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&op, sizeof (op));
 	
@@ -355,15 +370,16 @@ INT32 NetServerInit(NETIP_TYPE _emNetType, PT_NetServer _pServer, UINT16 _usLoca
 	iRet = bind(pServer->m_tSocket, (struct sockaddr *)&tAddrServ, sizeof(tAddrServ));
 	if (iRet < 0)
 	{
-		DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} _bind error",__FUNCTION__,__LINE__);
+		close(pServer->m_tSocket);
+		syslog_wrapper(LOG_FATAL, "net %s server init: _bind error", _emNetType?"udp":"tcp");
 		return -1;
 	}
 	
-	if(_cIP)
+	if (_cIP)
 	{
 		getsockname(pServer->m_tSocket,(struct sockaddr *)&tAddrLocal, &nAddrLen);
 		strcpy(_cIP,inet_ntoa(tAddrLocal.sin_addr));
-		//DLOGD(TAG_NET_SERVER_TCP,"{%s:%d} local IP : [%s] [%d] ",__FUNCTION__,__LINE__, _cIP, pServer->m_usPort);
+		syslog_wrapper(LOG_DEBUG, "net %s server init: local IP =[%s]-[%d]", _emNetType?"udp":"tcp", _cIP, pServer->m_usPort);
 	}
 
 	pServer->in_tEvent.m_emType		= EVENT_INLT;
@@ -371,16 +387,17 @@ INT32 NetServerInit(NETIP_TYPE _emNetType, PT_NetServer _pServer, UINT16 _usLoca
 	pServer->in_tEvent.m_Handle		= g_tServerHandle[_emNetType];
 	EventRegister((void *)pServer, (void *)pServer->m_pManger);  
 
-	if(NETIP_TCP == _emNetType)
+	if (NETIP_TCP == _emNetType)
 	{
 		iRet = listen(pServer->m_tSocket,100);
 		if (iRet < 0)
 		{
-			DLOGE(TAG_NET_SERVER_TCP,"{%s:%d} _listen error",__FUNCTION__,__LINE__);
+			close(pServer->m_tSocket);
+			syslog_wrapper(LOG_FATAL, "net %s server init: _listen error", _emNetType?"udp":"tcp");
 			return -1;
 		}		
 	}
-
+	
 	return pServer->m_tSocket;
 }
 /*******************************************************************************
@@ -396,12 +413,16 @@ INT32 TcpPeerDisconnect(PT_PeerNodeInfo _pClient)
 	
 	if(pNode)
 	{
-		//DLOGD(TAG_NET_SERVER_TCP,"{%s:%d} peer close",__FUNCTION__,__LINE__);
 		connect_close(pNode);
 	}
     return iRet;
 }
-
+/*******************************************************************************
+* Name: 
+* Descriptions: 
+* Parameter:	
+* Return:	
+* *****************************************************************************/
 INT32 GetTcpServerNodeNum(INT32 _iSocket)
 {
 	
@@ -418,12 +439,11 @@ INT32 TcpServerSnd(PT_PeerNodeInfo _pClient, UINT8 *_aucSndBuf, INT32 _iLen)
 {
     INT32 iRet = 0;
     PT_PeerNodeInfo pClient =_pClient;
-	//DLOGD(TAG_NET_SERVER_TCP,"{%s:%d} pClient->m_tSocket:%d",__FUNCTION__, __LINE__, pClient->m_tSocket);
 
     if(pClient && _aucSndBuf && pClient->m_tSocket != INVALID_SOCKET)
     {
         iRet = write2(pClient->m_tSocket,_aucSndBuf,_iLen);
-	   //DLOGD(TAG_NET_SERVER_TCP,"{%s:%d} iRet:%d",__FUNCTION__, __LINE__, iRet);
+		syslog_wrapper(LOG_TRACE, "tcp server send data to fd = %d, size = %d", pClient->m_tSocket, iRet);
     }
     return iRet;
 }
@@ -444,6 +464,7 @@ INT32 UdpServerSnd(PT_PeerNodeInfo _pClient, UINT8 *_aucSndBuf, INT32 _iLen)
 	inet_aton(pClient->m_ucClientIp, &tAddrSnd.sin_addr);
 	
     sendto(pClient->m_tSocket, _aucSndBuf, _iLen, 0, (struct sockaddr *)&tAddrSnd, sizeof(struct sockaddr));   
+	syslog_wrapper(LOG_TRACE, "udp server send data to fd = %d, size = %d", pClient->m_tSocket, _iLen);
     return 0;
 }
 

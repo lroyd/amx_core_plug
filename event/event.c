@@ -76,16 +76,16 @@ static void *epoll_thread(void *_pArg)
 {
 	PT_EvtMangerInfo pManger = _pArg;
 
-	//DLOGD(TAG_EPOLL_EVENT,"{%s:%d} start",__FUNCTION__,__LINE__);
+	syslog_wrapper(LOG_TRACE,"event thread start...");
 	while( pManger->m_iEp != -1 )
 	{
 		epoll_process(pManger);
 	}	    
-	DLOGE(TAG_EPOLL_EVENT,"{%s:%d} exit",__FUNCTION__,__LINE__);
+	syslog_wrapper(LOG_ERROR,"event thread exit!!!");
 	return NULL;
 }
 /*******************************************************************************
-* Name: 
+* Name: EventRegister
 * Descriptions:
 * Parameter:	
 * Return:	
@@ -100,6 +100,7 @@ INT32 EventRegister(void *_pThis, void *_pManger)
 	if ((EVENT_TIMER == pThis->m_emType) && (MANGER_ROLE_MASTER == pManger->m_iType))
 	{
 		/* in case : _iSetFd = time out */
+		//syslog_wrapper(LOG_DEBUG,"add timer %d ms", pThis->m_iEventFD);
 		pThis->m_pManger	= pManger;
 		amx_add_timer(_pThis, pThis->m_iEventFD);  
 		pThis->m_iTimerSet	= 1;
@@ -118,37 +119,46 @@ INT32 EventRegister(void *_pThis, void *_pManger)
 	{
 		ee.events = EPOLLIN|EPOLLET;
 	}
-	//pThis->m_iEventFD	= _iSetFd;
 
+	//syslog_wrapper(LOG_DEBUG,"add event fd = %d", pThis->m_iEventFD);
 	ee.data.ptr			= (void *)pThis;
 	pThis->m_pManger	= pManger;
 	if (epoll_ctl(pManger->m_iEp, EPOLL_CTL_ADD, pThis->m_iEventFD, &ee) == -1) 
 	{
 		pThis->m_pManger = NULL;
-		DLOGE(TAG_EPOLL_EVENT,"{%s:%d} _epoll_ctl error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_FATAL,"_epoll_ctl error");
 		return -1;
 	}
 	return 0;
 }
-
+/*******************************************************************************
+* Name: EventCancel
+* Descriptions:
+* Parameter:	
+* Return:	
+* *****************************************************************************/
 INT32 EventCancel(void *_pThis)
 {
-	INT32 iTpye;
 	struct epoll_event ee;	
 	PT_EventInfo pThis = _pThis;	
 	T_EvtMangerInfo *pManger = pThis->m_pManger;
 
-    if ((EVENT_TIMER == pThis->m_emType) && (1 == pThis->m_iTimerSet))
+	//syslog_wrapper(LOG_DEBUG,"emType = %d, m_iTimerSet = %d", pThis->m_emType, pThis->m_iTimerSet);
+    if (EVENT_TIMER == pThis->m_emType)
     {
-        amx_event_del_timer(pThis);
+		if(1 == pThis->m_iTimerSet)
+		{
+			syslog_wrapper(LOG_WARNING,"m_iTimerSet = 1 ? !!!!");
+			amx_event_del_timer(pThis);
+		}
     }
     else
     {
-		iTpye = EPOLL_CTL_DEL;
 		ee.events	= 0;
 		ee.data.ptr	= NULL;
-		if (epoll_ctl(pManger->m_iEp, iTpye, pThis->m_iEventFD, &ee) == -1) 
+		if (epoll_ctl(pManger->m_iEp, EPOLL_CTL_DEL, pThis->m_iEventFD, &ee) == -1) 
 		{
+			syslog_wrapper(LOG_FATAL,"_epoll_ctl delete error");
 			return -1;
 		}
 		pThis->m_pManger = NULL;
@@ -164,16 +174,22 @@ INT32 EventCancel(void *_pThis)
 * *****************************************************************************/
 INT32 MainTimerDefaultFun(void *_pThis)
 {
+	INT32 iRet = -1;
 	PT_EventInfo pThis = _pThis;
 	pThis->m_emType		= EVENT_TIMER;
 	pThis->m_iEventFD	= TIMER_MAIN_DEFAULT;
 	
-	EventRegister(pThis, pThis->m_pManger);  
+	iRet = EventRegister(pThis, pThis->m_pManger);  
 	
-	DLOGD(TAG_EPOLL_EVENT,"{%s:%d}",__FUNCTION__,__LINE__);
+	syslog_wrapper(LOG_DEBUG,"MainTimerDefaultFun %d", iRet);
    	return 0;
 }
-
+/*******************************************************************************
+* Name: EventMangerInit
+* Descriptions:
+* Parameter:	
+* Return: -1/0
+* *****************************************************************************/
 INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), INT32 _iUserMSec)
 {
 	INT32 iRet = 0, iMainTime = 0;
@@ -186,17 +202,17 @@ INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), IN
 	
 	pThis->m_iEventNum	= EPOLL_EVENT_DEFAULT;
 	pThis->m_pEvent		= malloc(sizeof(struct epoll_event) * pThis->m_iEventNum);
-	if (NULL==pThis->m_pEvent)
+	if (NULL == pThis->m_pEvent)
 	{    
-		DLOGE(TAG_EPOLL_EVENT,"{%s:%d} malloc error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_FATAL,"event manager _malloc error");
 		return -1;
 	}
 	pThis->m_iEp = epoll_create(pThis->m_iEventNum);
 	if (pThis->m_iEp == -1) 
 	{
 		free(pThis->m_pEvent);
-		pThis->m_pEvent = NULL;        
-		DLOGE(TAG_EPOLL_EVENT,"{%s:%d} epoll_create error",__FUNCTION__,__LINE__);
+		pThis->m_pEvent = NULL;       
+		syslog_wrapper(LOG_FATAL,"event manager _epoll_create error");
 		return -1;
 	}
 
@@ -206,7 +222,7 @@ INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), IN
 		close(pThis->m_iEp);
 		free(pThis->m_pEvent);
 		pThis->m_pEvent = NULL;
-		DLOGE(TAG_EPOLL_EVENT,"{%s:%d} create epoll_thread error",__FUNCTION__,__LINE__);
+		syslog_wrapper(LOG_FATAL,"event manager create _thread error");
 		return iRet;
 	}
 	pthread_detach(pThis->m_pthreadID);
@@ -224,13 +240,17 @@ INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), IN
 		}
 		pThis->in_tMainTimer.m_emType		= EVENT_TIMER;
 		pThis->in_tMainTimer.m_iEventFD		= iMainTime;
-		EventRegister(&pThis->in_tMainTimer, pThis);
+		if (!EventRegister(&pThis->in_tMainTimer, pThis))
+		{
+			syslog_wrapper(LOG_INFO,"event manager init ok");
+		}
 	}
+	
 	return 0;
 }
 
 /*******************************************************************************
-* Name: 
+* Name: CreatEventManger
 * Descriptions:
 * Parameter:	
 * Return:	
@@ -243,6 +263,10 @@ PT_EvtMangerInfo CreatEventManger(MANGER_ROLE _emRole)
        memset(pManger,0,sizeof(T_EvtMangerInfo)); 
        pManger->m_iType =_emRole; 
     }
+	else
+	{
+		syslog_wrapper(LOG_FATAL,"event manager create _malloc error!!!");
+	}
     return pManger;
 }
 
