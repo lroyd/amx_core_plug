@@ -35,12 +35,6 @@ extern "C" {
 // btla-specific --
 
 
-
-
-
-
-
-
 typedef struct
 {
 #if (!defined GKI_USE_DEFERED_ALLOC_BUF_POOLS && (GKI_USE_DYNAMIC_BUFFERS == FALSE))

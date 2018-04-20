@@ -8,9 +8,6 @@ extern "C" {
 
 
 
-
-
-
 void stack_init(void);
 void stack_deinit(void);
 

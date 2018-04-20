@@ -1,9 +1,10 @@
 #include "BaseType.h"
-#include "task_private.h"
 #include "task_declare.h"
 
 
 #define DECLARE_TASK(id, init, handle, deinit) {id, init, handle, deinit, NULL}
+
+/* 所有的任务 handle中的msg 都需要手动释放 */
 
 taskEntry LocalTasks[] = {
 

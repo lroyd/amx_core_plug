@@ -90,7 +90,7 @@ void stack_hci_send (int conid, uint8_t *p_msg)
 	if (hc_if)
 	{
 
-        hc_if->transmit_buf(0, NULL);  
+        hc_if->transmit_buf(conid, p_msg);  
 	}
     else
 	{

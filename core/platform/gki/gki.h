@@ -104,7 +104,7 @@ extern "C" {
 typedef void (SYSTEM_TICK_CBACK)(uint8_t);
 
 /* Timer list entry callback type */
-typedef void (TIMER_CBACK)(uint16_t , void *param);
+typedef void (TIMER_CBACK)(uint16_t , uint8_t, void *param);
 #define TIMER_PARAM_TYPE    (void *)
 
 /* Define a timer list entry */
