@@ -41,8 +41,13 @@
 #define DLL_DECLARE  
 
 #define FAST 
+/****************************************************************/
+typedef unsigned int  			TaskId;
+typedef unsigned short  		EventId;
 
-
+#define TRUE	(1) 
+#define FALSE	(0) 
+/****************************************************************/
 typedef signed char				INT8;
 typedef unsigned char			UINT8;
 typedef signed short			INT16;
@@ -51,9 +56,10 @@ typedef signed int				INT32;
 typedef unsigned int			UINT32;
 
 typedef unsigned long long		UINT64;
-typedef long long		INT64;
+typedef long long				INT64;
 
 typedef signed char				BOOLEN;
+typedef signed char				BOOLEAN;
 
 typedef intptr_t        int_t;
 typedef uintptr_t       uint_t;
