@@ -4,7 +4,8 @@
 	> Mail: 
 	> Created Time: 2016年01月27日 星期三 10时19分42秒
  ************************************************************************/
-#include"btu_act.h"
+#include "os_declare.h"
+ #include"btu_act.h"
 
 
 

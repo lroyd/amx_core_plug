@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include "BaseType.h"
-#include "task_declare.h"
+
 
 #define SYSTEM_TASK (0)
 //#define UPSTREAM(x)     (x)

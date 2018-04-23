@@ -7,7 +7,6 @@
 
 
 #include "gki.h"
-#include "task_declare.h"
 #include "btu_declare.h"
 
 

@@ -2,9 +2,8 @@
 **
 **
 ******************************************************************/
+#include "os_declare.h"
 #include "btu_declare.h"
-#include "task_declare.h"
-
 
 
 tBTU_ANS_EVT	btu_ans_table[ANS_MAX] = 
@@ -22,8 +21,8 @@ tBTU_CB   btu_cb = {0};
 static void btu_task_timer_cback(uint16_t evt, uint16_t conid, void *p_msg)
 {
 	//syslog_wrapper(LOG_ERROR, "STACK_TASK time out");
-	printf("asdfasdf data = %s\r\n",(uint8_t *)p_msg+TRANS_HDR);
-	if(conid == STACK_TASK)
+	//printf("asdfasdf data = %s\r\n",(uint8_t *)p_msg+TRANS_HDR);
+	if(conid == STACK_TASK) //STACK_TASK
 	{
 		/* 自己需要处理 */
 		

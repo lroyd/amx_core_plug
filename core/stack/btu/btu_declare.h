@@ -15,7 +15,7 @@ extern "C" {
 #include "gki.h"
 #include "message.h"
 #include "log_file.h"
-#include "task_declare.h"
+#include "os_declare.h"
 
 typedef struct
 {
@@ -104,7 +104,7 @@ typedef struct
 	uint8_t			sand_mode;
     TIMER_LIST_Q	quick_timer_queue;
     TIMER_LIST_Q	timer_queue;
-    tHCI_CMD_CB		hci_cmd_cb[TASK_MAX];	
+    tHCI_CMD_CB		hci_cmd_cb[INVALID_TASK_ID];	
 } tBTU_CB;
 
 extern  tBTU_CB   btu_cb; 

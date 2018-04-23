@@ -1,8 +1,9 @@
 #include <os_sched.h>
-#include <task_declare.h>
 
 #include "gki.h"
 #include "btu_declare.h"
+#include "os_conf.h"
+
 
 typedef struct
 {
@@ -11,7 +12,7 @@ typedef struct
     void*   msg;
 }TaskInternalMsg;
 
-extern taskEntry LocalTasks[TASK_MAX];
+extern taskEntry LocalTasks[INVALID_TASK_ID];
 
 static uint8_t SchedLoopRunning = TRUE;
 
@@ -19,7 +20,7 @@ static void SchedTaskInit(void)
 {
     uint8_t i = 0;
 
-    for (i = 0; i < TASK_MAX; i++)
+    for (i = 0; i < INVALID_TASK_ID; i++)
     {
         if (LocalTasks[i].init != NULL)
         {
@@ -32,7 +33,7 @@ static void SchedTaskDeinit(void)
 {
     uint8_t i = 0;
 
-    for (; i < TASK_MAX; i++)
+    for (; i < INVALID_TASK_ID; i++)
     {
         if (LocalTasks[i].deinit != NULL)
         {
@@ -77,7 +78,7 @@ void SchedLoop(uint32_t parameter)
             while ((interMsg = (TaskInternalMsg*)GKI_read_mbox(TASK_MBOX_0)) != NULL)
             {
                 uint16_t taskId = interMsg->taskId;
-                if (taskId < TASK_MAX && LocalTasks[taskId].handle != NULL)
+                if (taskId < INVALID_TASK_ID && LocalTasks[taskId].handle != NULL)
                 {
                     LocalTasks[taskId].handle(&LocalTasks[taskId].data, interMsg->opcode, interMsg->msg);
                 }
@@ -92,7 +93,7 @@ void SchedLoop(uint32_t parameter)
             while ((interMsg = (TaskInternalMsg*)GKI_read_mbox(TASK_MBOX_1)) != NULL)
             {
                 uint16_t taskId = interMsg->taskId;
-                if (taskId < TASK_MAX && LocalTasks[taskId].handle != NULL)
+                if (taskId < INVALID_TASK_ID && LocalTasks[taskId].handle != NULL)
                 {
                     LocalTasks[taskId].handle(&LocalTasks[taskId].data, interMsg->opcode, interMsg->msg);
                 }
