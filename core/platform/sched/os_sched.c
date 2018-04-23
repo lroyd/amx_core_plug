@@ -2,7 +2,7 @@
 #include <task_declare.h>
 
 #include "gki.h"
-
+#include "btu_declare.h"
 
 typedef struct
 {
@@ -73,15 +73,16 @@ void SchedLoop(uint32_t parameter)
 		/* btu */
         if (event & TASK_MBOX_0_EVT_MASK)
         {
-            char *p_msg = NULL;
-            
-            while ((p_msg = GKI_read_mbox (TASK_MBOX_0)) != NULL)
+            TaskInternalMsg* interMsg = NULL;
+            while ((interMsg = (TaskInternalMsg*)GKI_read_mbox(TASK_MBOX_0)) != NULL)
             {
-                syslog_wrapper(LOG_DEBUG, "M0  %s", p_msg);
-				LocalTasks[0].handle(&LocalTasks[0].data, 4, p_msg);
-				GKI_freebuf(p_msg);
-            }			
-
+                uint16_t taskId = interMsg->taskId;
+                if (taskId < TASK_MAX && LocalTasks[taskId].handle != NULL)
+                {
+                    LocalTasks[taskId].handle(&LocalTasks[taskId].data, interMsg->opcode, interMsg->msg);
+                }
+                GKI_freebuf(interMsg);  
+            }		
         }       
 		
 		/* 任务之间 */
@@ -141,7 +142,7 @@ void SchedLoop(uint32_t parameter)
         if(event & TIMER_1_EVT_MASK)
         {
             /* 用户定时器 每10ms进入一次 */    
-            HandleTimer();
+            //HandleTimer();
         }
         
     }
@@ -163,7 +164,7 @@ void TaskSendMessage(uint16_t taskId, uint16_t opcode, void* msg)
     prim->opcode = opcode;
     prim->msg    = msg;
 	
-    //ALOGE("MSG: %x - %x",prim, prim->msg);
+    //printf("MSG: %x - %s",prim, prim->msg);
     /* 发送的 */
     if(TASK_FUNCTION(taskId))
     {

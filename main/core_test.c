@@ -2,7 +2,8 @@
 #include "gki.h"
 #include "os_sched.h"
 
-
+#include "message.h"
+#include "task_declare.h"
 
 #define BTU_STACK_SIZE (20)
 #define BTU_TASK_STR    ((int8_t *)"BTU_SCHED")
@@ -34,7 +35,7 @@ int main(int argc, char **argv)
  
 	//sleep(2);
 	/**************************************************************************************/
-#if 1
+#if 0
 	char *prim1 = GKI_getbuf(20);
 	char *prim2 = GKI_getbuf(20);
 	char *prim3 = GKI_getbuf(100);
@@ -54,6 +55,22 @@ int main(int argc, char **argv)
 	prim1 = GKI_getbuf(20);
 	GKI_PrintBufferUsage(NULL, NULL);
 #endif
+
+/*
+	char *prim1 = GKI_getbuf(20);
+	memcpy(prim1,"hello",6);
+	
+	TSK_SEND_MSG(STACK_TASK, 0x8000, prim1);
+*/
+//测试 底层发送
+#if 0
+	btsnd_hcic_data_xmit(0, "fuck",5);  //透传模式
+
+#else
+	btsnd_hcic_data_ans(0, "fuck",5);
+
+#endif
+
 	while(1)
 	{
 		sleep(1);

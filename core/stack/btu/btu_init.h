@@ -11,7 +11,7 @@ extern "C" {
 void stack_init(void);
 void stack_deinit(void);
 
-void stack_hci_send (int conid, uint8_t *p_msg);
+void stack_hci_send (int conid, uint8_t *p_msg, uint16_t len);
 void stack_hci_send_cmd(int conid, uint8_t p_cmd);
 
 

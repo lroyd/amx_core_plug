@@ -1,6 +1,7 @@
 #include "BaseType.h"
 #include "task_declare.h"
 
+#include "btu_declare.h"
 
 #define DECLARE_TASK(id, init, handle, deinit) {id, init, handle, deinit, NULL}
 

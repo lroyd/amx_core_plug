@@ -26,36 +26,32 @@ void btu_init_timer(void)
 *******************************************************************************/
 void btu_start_timer (TIMER_LIST_ENT *p_tle, uint16_t type, uint32_t timeout)
 {
-    BTU_HDR *p_msg;
-    GKI_disable();
+
+    //GKI_disable();
 
     if (btu_cb.timer_queue.p_first == NULL)
     {
+
         /* 需要btu开启定时器，如果当前不是btu，则给btu发一个开启定时事件 */
         if (GKI_get_taskid() != BTU_TASK)
         {
-            /* post event to start timer in BTU task */
-            if ((p_msg = (BTU_HDR *)GKI_getbuf(BTU_HDR_SIZE)) != NULL)
-            {
-                p_msg->event = EVT_TO_START_TIMER;
-                GKI_send_msg (BTU_TASK, TASK_MBOX_0, p_msg);
-            }
+			TaskSendMessage(STACK_TASK, EVT_TO_START_TIMER, NULL);
         }
         else
         {
-            /* Start free running 1 second timer for list management */
             GKI_start_timer (TIMER_0, GKI_MS_TO_TICKS (100), TRUE);
         }
     }
     /* 定时器列表不为空，需要移除重复的定时器，重新挂载 */
-   
+
     GKI_remove_from_timer_list (&btu_cb.timer_queue, p_tle);
 
     p_tle->event = type;
     p_tle->ticks = timeout;         /* Save the number of seconds for the timer */
 
     GKI_add_to_timer_list (&btu_cb.timer_queue, p_tle);
-    GKI_enable();
+    //GKI_enable();
+
 }
 
 /*******************************************************************************
@@ -83,20 +79,13 @@ uint32_t btu_remaining_time (TIMER_LIST_ENT *p_tle)
 *******************************************************************************/
 void btu_stop_timer (TIMER_LIST_ENT *p_tle)
 {
-    BTU_HDR *p_msg;
-    GKI_disable();
+    //GKI_disable();
     GKI_remove_from_timer_list (&btu_cb.timer_queue, p_tle);
 
     /* if timer is stopped on other than BTU task */
     if (GKI_get_taskid() != BTU_TASK)
     {
-
-        /* post event to stop timer in BTU task */
-        if ((p_msg = (BTU_HDR *)GKI_getbuf(BTU_HDR_SIZE)) != NULL)
-        {
-            p_msg->event = EVT_TO_STOP_TIMER;
-            GKI_send_msg (BTU_TASK, TASK_MBOX_0, p_msg);
-        }
+		TaskSendMessage(STACK_TASK, EVT_TO_STOP_TIMER, NULL);
     }
     else
     {
@@ -106,7 +95,7 @@ void btu_stop_timer (TIMER_LIST_ENT *p_tle)
             GKI_stop_timer(TIMER_0);
         }
     }
-    GKI_enable();
+    //GKI_enable();
 }
 
 /*******************************************************************************
@@ -118,33 +107,27 @@ void btu_stop_timer (TIMER_LIST_ENT *p_tle)
 ** Returns          void
 **
 *******************************************************************************/
-void btu_hcif_store_cmd(int controller_id, trans_format_t p_buf)
+void btu_hcif_store_cmd(tHCI_CMD_CB *p_cmd, trans_format_t p_buf)
 {
-    tHCI_CMD_CB *p_hci_cmd_cb = &(btu_cb.hci_cmd_cb[controller_id]);
-    uint16_t opcode;
-    trans_format_t p_cmd;
-    uint8_t *p;
+    tHCI_CMD_CB *p_hci_cmd_cb = p_cmd;
+    trans_format_t p_msg;
 
     /* allocate buffer, Mount the retransmission queue*/ 
-    if((p_cmd = GKI_getbuf( sizeof(trans_format)))==NULL)
+    if((p_msg = GKI_getbuf(TRANS_HDR + p_buf->len))==NULL)
     {
 		/* error log */
         return;
     }
- 
-    /* 复制数据头 */
-    memcpy(p_cmd , p_buf, sizeof(trans_format));
-	/* 分配具体数据 */
-	p_cmd->msg = malloc(p_buf->len);
-	memcpy(p_cmd->msg, p_buf->msg, p_buf->len);
+    /* 复制数据头,验证数据？ */
+	memcpy((uint8_t *)p_msg, p_buf, p_buf->len);
 	
     /* queue copy of cmd */
-    GKI_enqueue(&(p_hci_cmd_cb->cmd_cmpl_q), (void *)p_cmd);
+    GKI_enqueue(&(p_hci_cmd_cb->cmd_cmpl_q), (void *)p_msg);
 
-    if(BTU_DATA_CMPL_TIMEOUT > 0)
+    if(p_hci_cmd_cb->ticks > 0)
     {
 		p_hci_cmd_cb->cmd_cmpl_timer.hci_cb = p_hci_cmd_cb;
-		btu_start_timer(&(p_hci_cmd_cb->cmd_cmpl_timer), BTU_TTYPE_DATA_TIMEOUT_EVT , BTU_DATA_CMPL_TIMEOUT);
+		btu_start_timer(&(p_hci_cmd_cb->cmd_cmpl_timer), p_hci_cmd_cb->event , p_hci_cmd_cb->ticks);
     }
 
 }
@@ -159,12 +142,10 @@ void btu_hcif_store_cmd(int controller_id, trans_format_t p_buf)
 ** Returns          void
 **
 *******************************************************************************/
-void btu_hcif_send_cmd(int controller_id, trans_format_t p_buf)
+void btu_hcif_send_cmd(tHCI_CMD_CB *p_cmd, trans_format_t p_buf)
 {
-    tHCI_CMD_CB *p_hci_cmd_cb = &(btu_cb.hci_cmd_cb[controller_id]);
-	
-	p_hci_cmd_cb->controller_id = controller_id;  //是否可以放在初始化的时候
-	
+    tHCI_CMD_CB *p_hci_cmd_cb = p_cmd;
+
 	p_hci_cmd_cb->cmd_window = 1;
 
     while( p_hci_cmd_cb->cmd_window )
@@ -172,18 +153,18 @@ void btu_hcif_send_cmd(int controller_id, trans_format_t p_buf)
         if(!p_buf)
         {
         	/* NULL 表示发送当前队列里的所有数据 */
-			p_hci_cmd_cb->cmd_window = p_hci_cmd_cb->cmd_xmit_q.count--;
-					
+			p_hci_cmd_cb->cmd_window = p_hci_cmd_cb->cmd_xmit_q.count;
+			
 			p_buf = (trans_format_t)GKI_dequeue(&(p_hci_cmd_cb->cmd_xmit_q));
         }
-        
+		
         if(p_buf)
         {
             /* 复制一份副本 */
-            btu_hcif_store_cmd(p_hci_cmd_cb->controller_id, p_buf);
+            btu_hcif_store_cmd(p_hci_cmd_cb, p_buf);
             p_hci_cmd_cb->cmd_window--;
 	
-            stack_hci_send(p_hci_cmd_cb->controller_id, p_buf);
+            stack_hci_send(p_hci_cmd_cb->controller_id, p_buf, p_buf->len);
             p_buf = NULL;
         }
         else
@@ -235,8 +216,10 @@ void btu_hcif_retry_data_timeout(TIMER_LIST_ENT *p_tle, uint8_t count)
 	
 	trans_format_t p_cmd;
 
+	
 	while((p_cmd = (trans_format_t) GKI_dequeue (&(p_hci_cmd_cb->cmd_cmpl_q))))
 	{
+		
 		/* have bug 0/1 */
 		p_cmd->layer_specific++;
 		if( p_cmd->layer_specific >= count )
@@ -254,36 +237,72 @@ void btu_hcif_retry_data_timeout(TIMER_LIST_ENT *p_tle, uint8_t count)
 	}
 	
 	/* xmit send all data to link */
-	btu_hcif_send_cmd ( p_hci_cmd_cb, p_hci_cmd_cb->conid, NULL );
+	btu_hcif_send_cmd ( p_hci_cmd_cb, NULL );
 	
 	return;
 }
 
-
 /*******************************************************************************
 **
-** Function        btu_hcif_chk_kcp_evt
+** Function        btu_hcif_command_complete_evt
 **
-** Description    
-** Returns          void
+** Description    Remove the retransmission queue corresponding to p_msg (if yes)
+**			只做摘除操作(kcp command need refresh retry count!!! not remove)
 **
+**			
+** Returns ：
+**				
 *******************************************************************************/
-void btu_hcif_chk_kcp_evt(void)
+int btu_hcif_command_complete_evt(tHCI_CMD_CB *hci_cmd_cb, trans_format_t p_msg)
 {
+	int iRet = -1;
+	tHCI_CMD_CB *p_hci_cmd_cb = hci_cmd_cb;
+	trans_format_t	 p_cmd;
+	UINT16	event = p_msg->event;
+	UINT32	seqno = p_msg->seqno;
+	
+	if (event == ACL_DATA_CMPL_EVT)
+	{
+		p_cmd = (trans_format_t)GKI_getfirst(&p_hci_cmd_cb->cmd_cmpl_q);
+		while(p_cmd)
+		{
+			/* 1.判断index有效性 */
+			
+			/* 2.判断主次命令是否一致 */
+			if ((p_cmd->event != GET_ANS_REQ(p_msg->event)))
+			{
+				/* 2.1 不是当前命令，一下个 */
+				p_cmd = (trans_format_t)GKI_getnext(p_cmd);
+				continue;
+			}
 
+			GKI_remove_from_queue(&p_hci_cmd_cb->cmd_cmpl_q, (void *)p_cmd);
+
+			GKI_freebuf((void *)p_cmd);
+
+			iRet = 0;
+			break;			
+		}
+		
+		if (BTU_DATA_CMPL_TIMEOUT > 0)
+		{
+			if (!GKI_queue_is_empty(&(p_hci_cmd_cb->cmd_cmpl_q)))
+			{
+				/*  */
+				btu_start_timer(&(p_hci_cmd_cb->cmd_cmpl_timer), (uint16_t)(BTU_DATA_TTYPE_TIMEOUT_EVT), BTU_DATA_CMPL_TIMEOUT);
+			}
+			else
+			{
+				btu_stop_timer(&(p_hci_cmd_cb->cmd_cmpl_timer));
+				//STACK_LOGD("%s stop timer!!",__func__);
+			}
+		}
+	}
+	else
+	{
+		
+		
+	}
+	
+	return iRet;
 }
-
-/*******************************************************************************
-**
-** Function        btu_process_kcp 
-**
-** Description      ����Ӧ����������ش�����
-**
-** Returns          void
-**
-*******************************************************************************/
-void btu_process_kcp(EventId event)
-{
-
-}
-

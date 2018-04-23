@@ -66,7 +66,7 @@ typedef struct
 
     void (*preload)(int conid, TRANSAC transac);
 
-    int (*transmit_buf)(int conid, TRANSAC transac);
+    int (*transmit_buf)(int conid, TRANSAC transac, uint16_t len);
 
     int (*cmd_int)(int conid, uint8_t cmd);
 

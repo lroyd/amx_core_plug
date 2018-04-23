@@ -382,7 +382,10 @@ void *GKI_read_mbox (UINT8 mbox)
     BUFFER_HDR_T    *p_hdr;
 
     if ((task_id >= GKI_MAX_TASKS) || (mbox >= NUM_TASK_MBOX))
-        return (NULL);
+	{
+		
+		return (NULL);
+	}
         
     GKI_disable();
 
@@ -472,7 +475,6 @@ void GKI_send_msg (UINT8 task_id, UINT8 mbox, void *msg)
     BUFFER_HDR_T *p_hdr;
 	BUFFER_HDR_T *p_tmp;
     tGKI_COM_CB *p_cb = &gki_cb.com;
-
     /* If task non-existant or not started, drop buffer */
     GKI_LOGD("%s task_id = 0x%.4X, mbox = 0x%.4X, state = %d, opcode = 0x%.4X",__func__,task_id, mbox, p_cb->OSRdyTbl[task_id] , *((INT32*)msg));
     if ((task_id >= GKI_MAX_TASKS) || (mbox >= NUM_TASK_MBOX) || (p_cb->OSRdyTbl[task_id] == TASK_DEAD))
@@ -490,7 +492,6 @@ void GKI_send_msg (UINT8 task_id, UINT8 mbox, void *msg)
 	    GKI_LOGE("%s send - buffer linked",__func__);
         return;
     }
-
     GKI_disable();
 		/* 扩展：队列保存 */
     if (p_cb->OSTaskQFirst[task_id][mbox])

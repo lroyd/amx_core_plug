@@ -35,6 +35,7 @@ enum
     TASK_MAX,
 };
 extern taskEntry LocalTasks[TASK_MAX];
+
 #ifdef __cplusplus
 }
 #endif

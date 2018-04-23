@@ -8,7 +8,7 @@
 
 #include "hci_vendor.h"
 #include "hci_lib.h"
-
+#include "message.h"
 
 #include "log_file.h"
 
@@ -47,11 +47,16 @@ static void preload(int conid, TRANSAC transac)
 
 }
 
-
-static int transmit_buf(int conid, TRANSAC transac)
+/* 所有的底层要发送的数据包，都是由底层释放 */
+static int transmit_buf(int conid, TRANSAC transac, uint16_t len)
 {
-
-	syslog_wrapper(LOG_INFO, "....transmit_buf");
+	
+	syslog_wrapper(LOG_INFO, "....transmit_buf conid = %d, len = %d, data = %s",conid, len, transac + TRANS_HDR);
+	
+	if (transac)
+	{
+		GKI_freebuf(transac);  
+	}
 	
     return 0;
 }

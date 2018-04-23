@@ -84,13 +84,12 @@ void stack_deinit(void)
     stack_hci_disable();
 }
 
-void stack_hci_send (int conid, uint8_t *p_msg)
+void stack_hci_send (int conid, uint8_t *p_msg, uint16_t len)
 {
 
 	if (hc_if)
 	{
-
-        hc_if->transmit_buf(conid, p_msg);  
+        hc_if->transmit_buf(conid, p_msg, len);  
 	}
     else
 	{
