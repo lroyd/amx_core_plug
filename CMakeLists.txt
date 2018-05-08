@@ -8,6 +8,7 @@ FILE(GLOB_RECURSE EVT_LIST 		"event/*.c")
 FILE(GLOB_RECURSE LOG_LIST 		"log/*.c")
 FILE(GLOB_RECURSE NET_LIST 		"netip/*.c")
 FILE(GLOB_RECURSE JSON_LIST 	"json/*.c")
+FILE(GLOB_RECURSE TIMER_LIST 	"timer/*.c")
 
 FILE(GLOB_RECURSE CORE_LIST 	"core/*.c")
 
@@ -23,7 +24,7 @@ LIST(REMOVE_DUPLICATES INCLUDE_DIRS)
 
 INCLUDE_DIRECTORIES(${INCLUDE_DIRS})
 
-ADD_LIBRARY(core_plug SHARED ${EVT_LIST} ${LOG_LIST} ${NET_LIST} ${JSON_LIST} ${CORE_LIST})
+ADD_LIBRARY(core_plug SHARED ${EVT_LIST} ${LOG_LIST} ${NET_LIST} ${JSON_LIST} ${CORE_LIST} ${TIMER_LIST})
 
 #ADD_EXECUTABLE(event "main/event_test.c")
 #TARGET_LINK_LIBRARIES(event core_plug)
@@ -37,5 +38,8 @@ ADD_LIBRARY(core_plug SHARED ${EVT_LIST} ${LOG_LIST} ${NET_LIST} ${JSON_LIST} ${
 #ADD_EXECUTABLE(netip "main/netip_test.c")
 #TARGET_LINK_LIBRARIES(netip core_plug)
 
-ADD_EXECUTABLE(core "main/core_test.c")
-TARGET_LINK_LIBRARIES(core core_plug)
+#ADD_EXECUTABLE(core "main/core_test.c")
+#TARGET_LINK_LIBRARIES(core core_plug)
+
+ADD_EXECUTABLE(timer "main/timer_test.c")
+TARGET_LINK_LIBRARIES(timer core_plug)

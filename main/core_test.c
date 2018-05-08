@@ -3,7 +3,7 @@
 #include "os_sched.h"
 
 #include "message.h"
-#include "task_declare.h"
+
 
 #define BTU_STACK_SIZE (20)
 #define BTU_TASK_STR    ((int8_t *)"BTU_SCHED")
@@ -67,7 +67,8 @@ int main(int argc, char **argv)
 	btsnd_hcic_data_xmit(0, "fuck",5);  //透传模式
 
 #else
-	btsnd_hcic_data_ans(0, "fuck",5);
+	btsnd_hcic_data_ans(0, "fuck",5);	//应答模式
+	
 
 #endif
 

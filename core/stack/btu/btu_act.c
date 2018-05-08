@@ -295,7 +295,6 @@ int btu_hcif_command_complete_evt(tHCI_CMD_CB *hci_cmd_cb, trans_format_t p_msg)
 			else
 			{
 				btu_stop_timer(&(p_hci_cmd_cb->cmd_cmpl_timer));
-				//STACK_LOGD("%s stop timer!!",__func__);
 			}
 		}
 	}

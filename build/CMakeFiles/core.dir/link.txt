@@ -1,1 +1,0 @@
-/usr/bin/cc  -W -g -DLINUX -pthread    CMakeFiles/core.dir/main/core_test.c.o  -o core -rdynamic libcore_plug.so -Wl,-rpath,/home/lroyd/github/amx_core_plug/build 

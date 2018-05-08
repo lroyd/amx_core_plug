@@ -1,2 +1,0 @@
-/home/lroyd/github/amx_core_plug/build/CMakeFiles/core.dir
-/home/lroyd/github/amx_core_plug/build/CMakeFiles/core_plug.dir
