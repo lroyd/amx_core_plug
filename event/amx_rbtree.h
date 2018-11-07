@@ -13,7 +13,7 @@ typedef intptr_t        amx_int_t;
 typedef uintptr_t       amx_uint_t;
 typedef intptr_t        amx_flag_t;
 
-typedef amx_uint_t  amx_rbtree_key_t;
+typedef amx_int_t   amx_rbtree_key_t;
 typedef amx_int_t   amx_rbtree_key_int_t;
 
 #ifndef amx_thread_volatile

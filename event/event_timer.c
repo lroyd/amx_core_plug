@@ -7,38 +7,88 @@
 #include "event_timer.h"
 #include "event.h"
 
-VarLock  amx_event_timer_mutex;
 
-amx_thread_volatile amx_rbtree_t  amx_event_timer_rbtree;
-static amx_rbtree_node_t          amx_event_timer_sentinel;
+static amx_msec_t amx_get_sys_timer(void)
+{	
+  	struct 	timeval now_tv; 
+    gettimeofday(&now_tv, NULL);
+  	return (now_tv.tv_sec*1000 + now_tv.tv_usec/1000);
+}
 
-
-amx_int_t amx_event_timer_init(void)
+void amx_event_del_timer(T_EventInfo *ev)
 {
-    amx_rbtree_init(&amx_event_timer_rbtree, &amx_event_timer_sentinel, amx_rbtree_insert_timer_value);
-    InitVarLock(amx_event_timer_mutex);
+	T_EvtMangerInfo *pThis = ev->m_pManger;
+	
+	
+    LockVarLock(pThis->in_tTree.amx_event_timer_mutex);
+
+    amx_rbtree_delete(&pThis->in_tTree.amx_event_timer_rbtree, &ev->timer);
+
+    UnLockVarLock(pThis->in_tTree.amx_event_timer_mutex);
+
+    ev->timer.left = NULL;
+    ev->timer.right = NULL;
+    ev->timer.parent = NULL;
+    ev->m_iTimerSet = 0;	
+}
+
+void amx_event_add_timer(T_EventInfo *ev, amx_msec_t timer)
+{
+	T_EvtMangerInfo *pThis = ev->m_pManger;
+    amx_msec_t      key;
+    amx_msec_int_t  diff;
+
+    key = amx_get_sys_timer() + timer;
+
+    if (ev->m_iTimerSet) 
+    {
+        diff = (amx_msec_int_t) (key - ev->timer.key);
+        if (amx_abs(diff) < AMX_TIMER_LAZY_DELAY) 
+        {
+           return;
+        }
+        amx_del_timer(ev);
+    }
+	
+    ev->timer.key = key;
+	
+    LockVarLock(pThis->in_tTree.amx_event_timer_mutex);
+	
+    amx_rbtree_insert(&pThis->in_tTree.amx_event_timer_rbtree, &ev->timer);
+	
+    UnLockVarLock(pThis->in_tTree.amx_event_timer_mutex);
+	
+    ev->m_iTimerSet = 1;
+}
+
+
+
+amx_int_t amx_event_timer_init(T_TreeInfo *tree)
+{
+    amx_rbtree_init(&tree->amx_event_timer_rbtree, &tree->amx_event_timer_sentinel, amx_rbtree_insert_timer_value);
+    InitVarLock(tree->amx_event_timer_mutex);
     return 0;
 }
 
 
-amx_msec_t amx_event_find_timer(void)
+amx_msec_t amx_event_find_timer(T_TreeInfo *tree)
 {
     amx_msec_int_t      timer;
     amx_rbtree_node_t  *node, *root, *sentinel;
 
-    if (amx_event_timer_rbtree.root == &amx_event_timer_sentinel) 
+    if (tree->amx_event_timer_rbtree.root == &tree->amx_event_timer_sentinel) 
 	{
         return AMX_TIMER_INFINITE;
     }
 
-    LockVarLock(amx_event_timer_mutex);
+    LockVarLock(tree->amx_event_timer_mutex);
 
-    root = amx_event_timer_rbtree.root;
-    sentinel = amx_event_timer_rbtree.sentinel;
+    root = tree->amx_event_timer_rbtree.root;
+    sentinel = tree->amx_event_timer_rbtree.sentinel;
 
     node = amx_rbtree_min(root, sentinel);
 
-    UnLockVarLock(amx_event_timer_mutex);
+    UnLockVarLock(tree->amx_event_timer_mutex);
 
     timer = (amx_msec_int_t) (node->key - amx_get_sys_timer());
 
@@ -46,19 +96,19 @@ amx_msec_t amx_event_find_timer(void)
 }
 
 
-void amx_event_expire_timers(void)
+void amx_event_expire_timers(T_TreeInfo *tree)
 {
     T_EventInfo *ev;
     amx_rbtree_node_t  *node, *root, *sentinel;
 
-    sentinel = amx_event_timer_rbtree.sentinel;
+    sentinel = tree->amx_event_timer_rbtree.sentinel;
 
     for ( ;; )
 	{
 
-        LockVarLock(amx_event_timer_mutex);
+        LockVarLock(tree->amx_event_timer_mutex);
 
-        root = amx_event_timer_rbtree.root;
+        root = tree->amx_event_timer_rbtree.root;
 
         if (root == sentinel) 
 		{
@@ -70,9 +120,9 @@ void amx_event_expire_timers(void)
         if ((amx_msec_int_t) (node->key - amx_get_sys_timer()) <= 0) 
 		{
             ev = (T_EventInfo *) node;
-            amx_rbtree_delete(&amx_event_timer_rbtree, &ev->timer); 
+            amx_rbtree_delete(&tree->amx_event_timer_rbtree, &ev->timer); 
 			
-            UnLockVarLock(amx_event_timer_mutex);
+            UnLockVarLock(tree->amx_event_timer_mutex);
 			
 			ev->timer.left = NULL;
             ev->timer.right = NULL;
@@ -88,5 +138,5 @@ void amx_event_expire_timers(void)
         break;
     }
 
-    UnLockVarLock(amx_event_timer_mutex);
+    UnLockVarLock(tree->amx_event_timer_mutex);
 }

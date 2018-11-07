@@ -1,7 +1,7 @@
 #include "BaseType.h"
 
 #include "log_file.h"
-#include "netip.h"
+#include "event.h"
 
 
 
@@ -56,16 +56,9 @@ INT32 SubTimerFun(void *_pThis)
 ********************************************************************************/
 INT32 main(INT32 argc, char **argv) 
 {
-	PT_EvtMangerInfo pMainEventManger = NULL;
-    pMainEventManger = CreatEventManger(MANGER_ROLE_MASTER);
+	void *pMainEventManger = NULL;
 	
-    if(NULL == pMainEventManger)
-    {
-        syslog_wrapper(LOG_ERROR,"_CreatEventManger error");
-        return 0;
-    }
-	
-	EventMangerInit(pMainEventManger, MainTimerFun, TIMER_MAIN); //MainTimerFun, TIMER_MAIN
+	EventMangerInit(MANGER_ROLE_MASTER, MainTimerFun, TIMER_MAIN, &pMainEventManger); //MainTimerFun, TIMER_MAIN
 /********************************************************************************/	
 	/* 测试：注册用户定时器 */
 

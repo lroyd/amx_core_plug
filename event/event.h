@@ -12,21 +12,19 @@ extern "C" {
 #endif
 
 #include "BaseType.h"
-#include "amx_rbtree.h"
+#include "event_timer.h"
 
 
 typedef enum
 {
 	MANGER_ROLE_MASTER = 0x00,	//具有fd监听和定时器功能
-	MANGER_ROLE_SLAVE,   
-	MANGER_ROLE_LISTEN,			//只具有fd监听功能
-	MANGER_ROLE_INLT,
-}MANGER_ROLE;			//注意每一个管理者有自己独立的线程
+	MANGER_ROLE_SLAVE,   		//只具有fd监听功能	
+}MANGER_TYPE;			//注意每一个管理者有自己独立的线程
 
 typedef enum
 {
-	EVENT_TIMER = 0x00, 	//创建定时器，只有master可以使用
-	EVENT_INPUT,      
+	EVENT_TIMER = 0x00, //创建定时器，只有master可以使用
+	EVENT_INPUT,      	//事件输入监听
 	EVENT_INLT,
 	EVENT_OUTPUT,		//not use
 	EVENT_OOB,			//not use
@@ -42,7 +40,6 @@ typedef struct _tagEvent
 	void 				*m_pManger;
 }T_EventInfo, *PT_EventInfo;
 
-
 typedef struct _tagEventManger
 {   
 	INT32 				m_iEp;
@@ -50,8 +47,13 @@ typedef struct _tagEventManger
 	struct epoll_event	*m_pEvent;
 	INT32				m_iEventNum;
 	T_EventInfo			in_tMainTimer;
-	UINT32				m_iType;        
+	
+	
+	T_TreeInfo			in_tTree;
+
+	INT32				m_iType;        
 }T_EvtMangerInfo, *PT_EvtMangerInfo;
+
 
 /*******************************************************************************
 * Name: 
@@ -59,14 +61,14 @@ typedef struct _tagEventManger
 * Parameter:	
 * Return:	
 * *****************************************************************************/
-PT_EvtMangerInfo CreatEventManger(MANGER_ROLE _emRole);
+INT32 EventMangerInit(MANGER_TYPE _emRole, INT32 (*_pUserHandle)(void *), INT32 _iUserMSec, void **_pThis);
 /*******************************************************************************
 * Name: 
 * Descriptions:
 * Parameter:	
 * Return:	
 * *****************************************************************************/
-INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), INT32 _iUserMSec);
+
 /*******************************************************************************
 * Name: 
 * Descriptions:

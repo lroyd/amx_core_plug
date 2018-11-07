@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <sys/epoll.h>
 
+#include "amx_rbtree.h"
 #include "event_timer.h"
 
 #include "event.h"
@@ -23,6 +24,7 @@
 
 
 
+
 /*******************************************************************************
 * Name: 
 * Descriptions:
@@ -34,7 +36,7 @@ static void epoll_process(T_EvtMangerInfo *_pManger)
 	INT32 i, iFds = -1;
 	PT_EventInfo pThis = NULL;	
 	
-	INT32 iMinTime = _pManger->m_iType == MANGER_ROLE_MASTER ? amx_event_find_timer(): -1;
+	INT32 iMinTime = _pManger->m_iType == MANGER_ROLE_MASTER ? amx_event_find_timer(&_pManger->in_tTree): -1;
 	iMinTime = iMinTime == 0 ? -1 :iMinTime;
 	
 	iFds = epoll_wait(_pManger->m_iEp, _pManger->m_pEvent, _pManger->m_iEventNum, iMinTime);
@@ -63,7 +65,7 @@ static void epoll_process(T_EvtMangerInfo *_pManger)
 LAB_EXIT:
 	if(MANGER_ROLE_MASTER == _pManger->m_iType)
 	{
-		amx_event_expire_timers();
+		amx_event_expire_timers(&_pManger->in_tTree);
 	}
 }
 /*******************************************************************************
@@ -102,7 +104,7 @@ INT32 EventRegister(void *_pThis, void *_pManger)
 		/* in case : _iSetFd = time out */
 		//syslog_wrapper(LOG_DEBUG,"add timer %d ms", pThis->m_iEventFD);
 		pThis->m_pManger	= pManger;
-		amx_add_timer(_pThis, pThis->m_iEventFD);  
+		amx_add_timer(pThis, pThis->m_iEventFD);  
 		pThis->m_iTimerSet	= 1;
 		pThis->m_emType		= EVENT_TIMER;
 		return 0;
@@ -190,14 +192,23 @@ INT32 MainTimerDefaultFun(void *_pThis)
 * Parameter:	
 * Return: -1/0
 * *****************************************************************************/
-INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), INT32 _iUserMSec)
+INT32 EventMangerInit(MANGER_TYPE _emRole, INT32 (*_pUserHandle)(void *), INT32 _iUserMSec, void **_pThis)
 {
 	INT32 iRet = 0, iMainTime = 0;
-	PT_EvtMangerInfo pThis = _pThis;
+	
+    T_EvtMangerInfo *pThis = malloc(sizeof(T_EvtMangerInfo));
+    if(!pThis)
+    {
+		printf("error");
+		return -1;
+    }
+
+	memset(pThis,0,sizeof(T_EvtMangerInfo)); 
+	pThis->m_iType =_emRole; 
 	
 	if (pThis->m_iType == MANGER_ROLE_MASTER)	
 	{
-		amx_event_timer_init();
+		amx_event_timer_init(&pThis->in_tTree);
 	}
 	
 	pThis->m_iEventNum	= EPOLL_EVENT_DEFAULT;
@@ -205,23 +216,28 @@ INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), IN
 	if (NULL == pThis->m_pEvent)
 	{    
 		syslog_wrapper(LOG_FATAL,"event manager _malloc error");
+		free(pThis);
+		
 		return -1;
 	}
 	pThis->m_iEp = epoll_create(pThis->m_iEventNum);
 	if (pThis->m_iEp == -1) 
 	{
 		free(pThis->m_pEvent);
-		pThis->m_pEvent = NULL;       
+		free(pThis);
+		//pThis->m_pEvent = NULL;       
 		syslog_wrapper(LOG_FATAL,"event manager _epoll_create error");
 		return -1;
 	}
 
-	iRet = pthread_create(&pThis->m_pthreadID, NULL, epoll_thread, pThis); 
+	iRet = pthread_create(&pThis->m_pthreadID, NULL, epoll_thread, pThis); //+++ 添加栈大小设置
 	if (iRet != 0)
 	{
 		close(pThis->m_iEp);
 		free(pThis->m_pEvent);
-		pThis->m_pEvent = NULL;
+		free(pThis);
+		//pThis->m_pEvent = NULL;
+		
 		syslog_wrapper(LOG_FATAL,"event manager create _thread error");
 		return iRet;
 	}
@@ -245,29 +261,40 @@ INT32 EventMangerInit(PT_EvtMangerInfo _pThis, INT32 (*_pUserHandle)(void *), IN
 			syslog_wrapper(LOG_INFO,"event manager init ok");
 		}
 	}
-	
+	if (_pThis)
+	{
+		*_pThis = (void *)pThis;
+	}
+
 	return 0;
 }
 
 /*******************************************************************************
-* Name: CreatEventManger
+* Name: 
 * Descriptions:
 * Parameter:	
-* Return:	
+* Return: 
 * *****************************************************************************/
-PT_EvtMangerInfo CreatEventManger(MANGER_ROLE _emRole)
+INT32 EventMangerDeinit(void *_pThis)
 {
-    PT_EvtMangerInfo pManger = malloc(sizeof(T_EvtMangerInfo));
-    if(pManger)
-    {
-       memset(pManger,0,sizeof(T_EvtMangerInfo)); 
-       pManger->m_iType =_emRole; 
-    }
-	else
-	{
-		syslog_wrapper(LOG_FATAL,"event manager create _malloc error!!!");
-	}
-    return pManger;
+	T_EvtMangerInfo *pThis = _pThis;
+	
+	close(pThis->m_iEp);	
+	
+	pThis->m_iEp = -1;		//等待线程退出
+	
+	free(pThis->m_pEvent);
+	//free(pThis);			//注意此时如果线程还没退出不能释放
+	
+	
+	return 0;
 }
+
+
+
+
+
+
+
 
 
